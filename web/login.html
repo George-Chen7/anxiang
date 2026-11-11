@@ -1,0 +1,163 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>登录 · 安响社区告警与处置</title>
+  <link rel="stylesheet" href="console.css">
+  <script src="api.js"></script>
+  <script>
+    /* 会话由服务端维护：已登录则直接回到工作台 */
+    AXAPI.me().then(function (r) { if (r.ok) location.replace("index.html"); });
+  </script>
+</head>
+<body class="login-body">
+  <div class="login-shell">
+    <section class="login-hero" aria-label="平台介绍">
+      <div class="hero-glow"></div>
+      <div class="hero-top">
+        <span class="brand-mark brand-mark--light" aria-hidden="true">安</span>
+        <span class="hero-brand">安响 <small>ANXIANG</small></span>
+      </div>
+      <div class="hero-main">
+        <span class="hero-kicker">COMMUNITY SAFETY OPERATIONS / 社区安全运营平台</span>
+        <h1>让每一次告警<br>都有人接住，<br><em>都有迹可循。</em></h1>
+        <p>面向平台管理员与社区网格员的协同处置原型。管理员模拟触发异常事件，网格员接收、联系、上门并记录结果，全流程可追溯。</p>
+        <div class="hero-features">
+          <div><span class="feature-icon">◈</span><div><b>事件模拟</b><small>7 类异常场景 · 一键发出告警</small></div></div>
+          <div><span class="feature-icon">☑</span><div><b>闭环处置</b><small>接收 → 联系 → 上门 → 办结</small></div></div>
+          <div><span class="feature-icon">▤</span><div><b>全程留痕</b><small>处置时间线与操作日志</small></div></div>
+        </div>
+      </div>
+      <div class="hero-foot"><span>澄湾社区 · 原型演示</span><span>数据仅保存在本地浏览器</span></div>
+    </section>
+
+    <section class="login-panel" aria-label="登录">
+      <div class="login-card">
+        <span class="login-kicker">ACCOUNT ACCESS / 身份接入</span>
+        <h2>欢迎回来</h2>
+        <p class="login-sub">请选择角色并登录，进入对应的工作台。</p>
+
+        <div class="role-switch" role="tablist" aria-label="选择登录角色">
+          <button type="button" class="role-tab active" data-role="admin" role="tab" aria-selected="true">
+            <span class="role-tab__icon">◈</span>
+            <span><b>平台管理员</b><small>事件模拟 · 全局监管</small></span>
+          </button>
+          <button type="button" class="role-tab" data-role="grid" role="tab" aria-selected="false">
+            <span class="role-tab__icon">☑</span>
+            <span><b>社区网格员</b><small>接收告警 · 现场处置</small></span>
+          </button>
+        </div>
+
+        <form id="loginForm" novalidate>
+          <label class="field">
+            <span>账号</span>
+            <input id="username" name="username" type="text" autocomplete="username" placeholder="请输入账号" value="admin" required>
+          </label>
+          <label class="field">
+            <span>密码</span>
+            <span class="password-wrap">
+              <input id="password" name="password" type="password" autocomplete="current-password" placeholder="请输入密码" value="admin123" required>
+              <button type="button" id="togglePassword" class="password-toggle" aria-label="显示密码">显示</button>
+            </span>
+          </label>
+          <div class="login-error" id="loginError" role="alert" hidden></div>
+          <button type="submit" class="login-submit" id="loginSubmit">登录工作台 <span aria-hidden="true">→</span></button>
+        </form>
+
+        <div class="demo-accounts">
+          <div class="demo-head"><span>演示账号</span><small>点击即可一键填入</small></div>
+          <button type="button" class="demo-item" data-username="admin" data-password="admin123" data-role="admin">
+            <span class="demo-avatar is-admin">管</span>
+            <span class="demo-info"><b>admin <small>平台管理员 · 沈砚</small></b><small>admin / admin123</small></span>
+            <span class="demo-arrow">→</span>
+          </button>
+          <button type="button" class="demo-item" data-username="grid" data-password="grid123" data-role="grid">
+            <span class="demo-avatar is-grid">网</span>
+            <span class="demo-info"><b>grid <small>社区网格员 · 林岸</small></b><small>grid / grid123</small></span>
+            <span class="demo-arrow">→</span>
+          </button>
+          <button type="button" class="demo-item" data-username="grid2" data-password="grid123" data-role="grid">
+            <span class="demo-avatar is-grid">网</span>
+            <span class="demo-info"><b>grid2 <small>社区网格员 · 许澄</small></b><small>grid2 / grid123</small></span>
+            <span class="demo-arrow">→</span>
+          </button>
+        </div>
+
+        <p class="login-notice">账号由本地服务端校验，密码以 PBKDF2 加盐哈希存于 SQLite，登录态为 HttpOnly Cookie。<b>演示账号请勿用于生产环境</b>。</p>
+      </div>
+    </section>
+  </div>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+  <script>
+  (function () {
+    "use strict";
+    var role = "admin";
+    var form = document.getElementById("loginForm");
+    var username = document.getElementById("username");
+    var password = document.getElementById("password");
+    var errorBox = document.getElementById("loginError");
+    var tabs = document.querySelectorAll(".role-tab");
+
+    function showError(message) {
+      errorBox.textContent = message;
+      errorBox.hidden = !message;
+    }
+    function fill(name, pass, nextRole) {
+      username.value = name;
+      password.value = pass;
+      setRole(nextRole);
+      showError("");
+      username.focus();
+    }
+    function setRole(next) {
+      role = next;
+      tabs.forEach(function (tab) {
+        var active = tab.dataset.role === next;
+        tab.classList.toggle("active", active);
+        tab.setAttribute("aria-selected", active ? "true" : "false");
+      });
+    }
+    tabs.forEach(function (tab) {
+      tab.addEventListener("click", function () {
+        setRole(tab.dataset.role);
+        var preset = tab.dataset.role === "admin"
+          ? { u: "admin", p: "admin123" }
+          : { u: "grid", p: "grid123" };
+        username.value = preset.u;
+        password.value = preset.p;
+        showError("");
+      });
+    });
+    document.querySelectorAll(".demo-item").forEach(function (item) {
+      item.addEventListener("click", function () {
+        fill(item.dataset.username, item.dataset.password, item.dataset.role);
+      });
+    });
+    document.getElementById("togglePassword").addEventListener("click", function () {
+      var show = password.type === "password";
+      password.type = show ? "text" : "password";
+      this.textContent = show ? "隐藏" : "显示";
+      this.setAttribute("aria-label", show ? "隐藏密码" : "显示密码");
+    });
+    form.addEventListener("submit", async function (event) {
+      event.preventDefault();
+      var submit = document.getElementById("loginSubmit");
+      var original = submit.innerHTML;
+      submit.disabled = true;
+      submit.innerHTML = "正在验证…";
+      var result = await AXAPI.login(username.value, password.value, role);
+      if (!result.ok) {
+        showError(result.message);
+        submit.disabled = false;
+        submit.innerHTML = original;
+        return;
+      }
+      location.replace("index.html");
+    });
+  })();
+  </script>
+</body>
+</html>

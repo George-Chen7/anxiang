@@ -1,4 +1,4 @@
-/* Local static server for demo1 (Node fallback when Python is missing). */
+/* Static-only server for the archived prototype (web/static.html). No /api/* routes. */
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
@@ -25,7 +25,7 @@ function listen(port) {
   }
   const server = http.createServer((req, res) => {
     let rel = decodeURIComponent(req.url.split('?')[0]);
-    if (rel === '/') rel = '/index.html';
+    if (rel === '/') rel = '/static.html';
     const file = path.resolve(ROOT, '.' + rel);
     if (file !== ROOT && !file.startsWith(ROOT + path.sep)) {
       res.writeHead(403); res.end('Forbidden'); return;
@@ -41,7 +41,7 @@ function listen(port) {
   });
   server.on('error', () => listen(port + 1));
   server.listen(port, '127.0.0.1', () => {
-    const url = 'http://127.0.0.1:' + port + '/index.html';
+    const url = 'http://127.0.0.1:' + port + '/static.html';
     console.log('Local server started: ' + url);
     console.log('Folder: ' + ROOT);
     console.log('Keep this window open. Close it or press Ctrl+C to stop the server.');

@@ -12,14 +12,10 @@ const buildings = [
   {id:"C2",name:"C区 2号楼",x:-0.1,z:2.5},
   {id:"B5",name:"B区 5号楼",x:5.7,z:3.7}
 ];
+/* 事件数据统一由 store.js（本地持久化）提供；这里保留一份快照供三维场景使用，
+   数据层发生任何变更时由 syncAlerts() 增量同步告警点。 */
 /** @type {AlertData[]} */
-const alerts = [
-  {id:"AX-001",building:"B3",floor:31,unit:"2单元",room:"3102",type:"燃气浓度异常",level:3,time:"2026-11-07 09:12:40",device:"燃气传感器 CH₄-3102 · 18% LEL",status:"待核实",description:"住户厨房燃气浓度连续 3 次超过预设阈值，请尽快电话核实并安排现场排查。"},
-  {id:"AX-002",building:"A1",floor:22,unit:"1单元",room:"2201",type:"烟雾浓度异常",level:3,time:"2026-11-07 08:56:20",device:"烟雾探测器 SM-2201 · 86 ppm",status:"处理中",description:"烟雾探测器持续上报异常，值班人员需联系住户并确认现场情况。"},
-  {id:"AX-003",building:"B5",floor:17,unit:"2单元",room:"1702",type:"独居关怀提醒",level:2,time:"2026-11-07 08:31:10",device:"活动感应器 AC-1702 · 12 小时未检测到活动",status:"待核实",description:"住户活动信号长时间未更新，建议先电话联系，再视情况上门关怀。"},
-  {id:"AX-004",building:"A2",floor:28,unit:"1单元",room:"2801",type:"用水异常",level:2,time:"2026-11-07 07:41:12",device:"智能水表 WM-2801 · 连续流量异常",status:"待核实",description:"智能水表出现持续用水记录，建议联系住户确认是否存在漏水。"},
-  {id:"AX-005",building:"C2",floor:12,unit:"2单元",room:"1202",type:"门磁长时开启",level:1,time:"2026-11-07 07:13:00",device:"门磁传感器 DC-1202 · 开启 48 分钟",status:"已通知",description:"住户入户门保持开启超过设定时长，请联系住户确认。"}
-];
+let alerts = AX.events().slice();
 
 const sceneElement = /** @type {HTMLElement} */ (document.getElementById("scene"));
 const workspace = /** @type {HTMLElement} */ (document.getElementById("workspace"));
@@ -111,7 +107,69 @@ for(const z of [-1.1,1.2])neighborhood.add(box(17,.015,.66,materials.path,0,-.03
 for(const x of [-2.9,2.4])neighborhood.add(box(.63,.015,13,materials.path,x,-.02,0));
 
 /** @param {AlertData} alert @returns {void} */
-function createMarker(alert){const tower=towerObjects.get(alert.building);const material=alert.level===3?materials.urgent:alert.level===2?materials.high:materials.watch;const y=(alert.floor-.5)*FLOOR_HEIGHT;const x=alert.room.endsWith("01")?-.62:.62;const group=new THREE.Group();group.position.set(x,y,1.07);tower.group.add(group);const halo=new THREE.Mesh(new THREE.SphereGeometry(.19,16,12),new THREE.MeshBasicMaterial({color:material.color,transparent:true,opacity:.19,depthTest:false}));halo.renderOrder=20;group.add(halo);const dot=new THREE.Mesh(new THREE.SphereGeometry(.095,16,12),material);dot.renderOrder=21;group.add(dot);const hit=new THREE.Mesh(new THREE.SphereGeometry(.22,16,12),new THREE.MeshBasicMaterial({visible:false}));hit.userData={kind:"alert",id:alert.id};group.add(hit);markerHits.push(hit);markerObjects.set(alert.id,{group,halo,dot,hit});}
+/** 每个告警点使用独立材质，方便随处置状态改变颜色（办结后熄灭为灰色）。
+ *  @param {AlertData} alert @returns {void} */
+function createMarker(alert){
+  const tower=towerObjects.get(alert.building);
+  if(!tower)return;
+  const material=(alert.level===3?materials.urgent:alert.level===2?materials.high:materials.watch).clone();
+  const haloMaterial=new THREE.MeshBasicMaterial({color:material.color,transparent:true,opacity:.19,depthTest:false});
+  const y=(alert.floor-.5)*FLOOR_HEIGHT;
+  const x=alert.room.endsWith("01")?-.62:.62;
+  const group=new THREE.Group();group.position.set(x,y,1.07);tower.group.add(group);
+  const halo=new THREE.Mesh(new THREE.SphereGeometry(.19,16,12),haloMaterial);halo.renderOrder=20;group.add(halo);
+  const dot=new THREE.Mesh(new THREE.SphereGeometry(.095,16,12),material);dot.renderOrder=21;group.add(dot);
+  const hit=new THREE.Mesh(new THREE.SphereGeometry(.22,16,12),new THREE.MeshBasicMaterial({visible:false}));
+  hit.userData={kind:"alert",id:alert.id};group.add(hit);markerHits.push(hit);
+  markerObjects.set(alert.id,{group,halo,dot,hit,material,haloMaterial});
+  applyMarkerState(alert);
+}
+/** @param {AlertData} alert @returns {void} */
+function applyMarkerState(alert){
+  const record=markerObjects.get(alert.id);if(!record)return;
+  const done=alert.status===AX.STATUS.RESOLVED;
+  const color=done?0x9fb3a7:alert.level===3?0xd85651:alert.level===2?0xe68b57:0xd7af54;
+  record.material.color.setHex(color);
+  record.material.transparent=done;record.material.opacity=done?.45:1;record.material.depthTest=!done;
+  record.haloMaterial.color.setHex(color);record.haloMaterial.opacity=done?.07:.19;
+  record.material.needsUpdate=true;
+}
+/** @param {string} id @returns {void} */
+function removeMarker(id){
+  const record=markerObjects.get(id);if(!record)return;
+  if(record.group.parent)record.group.parent.remove(record.group);
+  const index=markerHits.indexOf(record.hit);if(index>=0)markerHits.splice(index,1);
+  record.material.dispose();record.haloMaterial.dispose();
+  markerObjects.delete(id);
+}
+/** 数据层变更 → 增量同步三维告警点、列表、统计与详情状态。 @returns {void} */
+function syncAlerts(){
+  const next=AX.events().slice();
+  const ids=new Set(next.map(item=>item.id));
+  for(const id of [...markerObjects.keys()])if(!ids.has(id))removeMarker(id);
+  for(const item of next){
+    if(!markerObjects.has(item.id))createMarker(item);
+    applyMarkerState(item);
+  }
+  alerts=next;
+  if(selectedAlert&&!ids.has(selectedAlert))closeDetail();
+  renderList();
+  if(selectedBuilding)renderFloors();
+  refreshSummary();
+  const status=document.getElementById("detailStatus");
+  if(status&&selectedAlert&&ids.has(selectedAlert))status.textContent=getAlert(selectedAlert).status;
+}
+/** 让顶部概览数字跟随真实事件数据。 @returns {void} */
+function refreshSummary(){
+  const stats=AX.stats();
+  const pad=n=>String(n).padStart(2,"0");
+  const today=new Date();
+  const date=`${today.getFullYear()} / ${pad(today.getMonth()+1)} / ${pad(today.getDate())}`;
+  const summary=document.querySelector(".summary");
+  if(summary)summary.innerHTML=`<span><b>${pad(buildings.length)}</b> 栋住宅</span><span><b>${pad(stats.urgent)}</b> 条紧急</span><span><b>${pad(stats.total)}</b> 条告警</span><small>${date}</small>`;
+  const counter=document.querySelector(".aside-head h2 em");if(counter)counter.textContent=pad(stats.total);
+  const tools=document.querySelectorAll(".list-tools span");if(tools[1])tools[1].textContent=`共 ${stats.total} 条`;
+}
 for(const alert of alerts)createMarker(alert);
 
 /** @param {number} level @returns {string} */
@@ -123,8 +181,23 @@ function getAlert(id){const alert=alerts.find(item=>item.id===id);if(!alert)thro
 /** @param {string} id @returns {BuildingData} */
 function getBuilding(id){const building=buildings.find(item=>item.id===id);if(!building)throw new Error(`找不到楼栋：${id}`);return building;}
 /** @returns {void} */
-function renderList(){const list=/** @type {HTMLElement} */(document.getElementById("alertList"));list.replaceChildren();for(const alert of [...alerts].sort((a,b)=>b.level-a.level||b.time.localeCompare(a.time))){const button=document.createElement("button");button.type="button";button.className="alert-card";button.innerHTML=`<span class="alert-card-top"><strong>${alert.type}</strong><span class="level ${levelClass(alert.level)}">${levelName(alert.level)}</span></span><span class="alert-location">${getBuilding(alert.building).name} · ${alert.unit} · ${alert.floor}层 ${alert.room}室</span><span class="alert-card-bottom"><span>${alert.time.slice(11)}</span><b>${alert.status} →</b></span>`;button.addEventListener("click",()=>openAlert(alert.id));list.appendChild(button);}}
+function renderList(){
+  const list=/** @type {HTMLElement} */(document.getElementById("alertList"));list.replaceChildren();
+  const sorted=[...alerts].sort((a,b)=>{
+    const doneA=a.status===AX.STATUS.RESOLVED?1:0;
+    const doneB=b.status===AX.STATUS.RESOLVED?1:0;
+    return doneA-doneB||b.level-a.level||b.time.localeCompare(a.time);
+  });
+  for(const alert of sorted){
+    const button=document.createElement("button");button.type="button";
+    button.className="alert-card"+(alert.status===AX.STATUS.RESOLVED?" is-resolved":"");
+    const sourceTag=alert.source==="simulator"?'<i class="source-tag">模拟</i>':"";
+    button.innerHTML=`<span class="alert-card-top"><strong>${esc(alert.type)}${sourceTag}</strong><span class="level ${levelClass(alert.level)}">${levelName(alert.level)}</span></span><span class="alert-location">${esc(getBuilding(alert.building).name)} · ${esc(alert.unit)} · ${alert.floor}层 ${esc(alert.room)}室</span><span class="alert-card-bottom"><span>${AX.fmtShort(alert.time)}</span><b>${esc(alert.status)} →</b></span>`;
+    button.addEventListener("click",()=>openAlert(alert.id));list.appendChild(button);
+  }
+}
 renderList();
+refreshSummary();
 
 /** @param {string} id @returns {void} */
 function selectBuilding(id){selectedBuilding=id;selectedFloor=0;selectedAlert="";for(const [key,tower] of towerObjects){tower.selection.visible=key===id;tower.floorHighlight.visible=false;}const tower=towerObjects.get(id);tower.group.getWorldPosition(desiredTarget);desiredTarget.y=5.1;desiredRadius=15;/** @type {HTMLElement} */(document.getElementById("floorPicker")).hidden=false;/** @type {HTMLElement} */(document.getElementById("pickerTitle")).textContent=`${getBuilding(id).name} · 选择楼层`;renderFloors();/** @type {HTMLElement} */(document.getElementById("sceneHint")).textContent="已定位楼栋，点击模型楼层或右上方楼层编号";}
@@ -133,13 +206,67 @@ function renderFloors(){const grid=/** @type {HTMLElement} */(document.getElemen
 /** @param {string} id @param {number} floor @returns {void} */
 function selectFloor(id,floor){if(selectedBuilding!==id)selectBuilding(id);selectedFloor=floor;const tower=towerObjects.get(id);tower.floorHighlight.visible=true;tower.floorHighlight.position.y=(floor-.5)*FLOOR_HEIGHT;const focus=new THREE.Vector3(0,(floor-.5)*FLOOR_HEIGHT,0);tower.group.localToWorld(focus);desiredTarget.copy(focus);desiredRadius=11;renderFloors();/** @type {HTMLElement} */(document.getElementById("sceneHint")).textContent=`${getBuilding(id).name} · ${floor}层${alerts.some(alert=>alert.building===id&&alert.floor===floor)?" · 此层有告警":""}`;}
 /** @param {string} id @returns {void} */
-function openAlert(id){const alert=getAlert(id);selectFloor(alert.building,alert.floor);selectedAlert=id;desiredRadius=12;const marker=markerObjects.get(id);marker.group.getWorldPosition(desiredTarget);workspace.classList.add("detail-open");/** @type {HTMLElement} */(document.getElementById("listView")).hidden=true;const detail=/** @type {HTMLElement} */(document.getElementById("detailView"));detail.hidden=false;detail.innerHTML=`<div class="detail-content"><button class="detail-back" id="backButton" type="button">← 返回列表</button><span class="panel-kicker">ALERT DETAIL / ${alert.id}</span><h2 class="detail-title">${alert.type}</h2><p class="detail-sub">告警点已在左侧模型中定位</p><div class="detail-hero"><span class="level ${levelClass(alert.level)}">${levelName(alert.level)}告警</span><p>${alert.description}</p></div><div class="detail-grid"><div><span>住户位置</span><b>${getBuilding(alert.building).name}<br>${alert.unit} ${alert.floor}层 ${alert.room}室</b></div><div><span>发生时间</span><b>${alert.time}</b></div><div><span>告警等级</span><b>${levelName(alert.level)}</b></div><div><span>处理状态</span><b id="detailStatus">${alert.status}</b></div></div><div class="detail-section"><h3>设备依据</h3><div class="evidence">${alert.device}</div></div><div class="actions"><button id="contactButton" type="button">记录联系住户</button><button id="dispatchButton" class="primary" type="button">安排上门处置</button></div><div class="elder-dropdown" id="elderDropdown"><button class="elder-dropdown__trigger" id="elderTrigger" type="button" aria-expanded="false" aria-controls="elderDropdownPanel" data-alert-id="${alert.id}"><span class="elder-dropdown__dot" aria-hidden="true"></span><span class="elder-dropdown__label">查看住户简介</span><span class="elder-dropdown__hint">点击打开简介页</span><svg class="elder-dropdown__chev" viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path d="M3 5.5 8 10.5 13 5.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button></div></div>`;closeElderDropdown(true);positionElderTrigger();/** @type {HTMLElement} */(document.getElementById("backButton")).addEventListener("click",closeDetail);/** @type {HTMLElement} */(document.getElementById("contactButton")).addEventListener("click",()=>updateStatus(alert,"已联系住户"));/** @type {HTMLElement} */(document.getElementById("dispatchButton")).addEventListener("click",()=>updateStatus(alert,"已安排上门"));requestAnimationFrame(resize);}
-/** @param {AlertData} alert @param {string} status @returns {void} */
-function updateStatus(alert,status){alert.status=status;/** @type {HTMLElement} */(document.getElementById("detailStatus")).textContent=status;renderList();showToast(`${alert.id}：${status}（仅保存于当前页面）`);}
+/** 模拟器的自定义文本会进入详情模板，统一转义避免 HTML 注入。 */
+function esc(value){return String(value==null?"":value).replace(/[&<>"']/g,ch=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"})[ch]);}
+/** 打开告警详情：只读展示 + 引导到对应角色工作台。 @param {string} id @returns {void} */
+function openAlert(id){
+  const alert=getAlert(id);
+  const event=AX.event(id);
+  selectFloor(alert.building,alert.floor);
+  selectedAlert=id;desiredRadius=12;
+  const marker=markerObjects.get(id);
+  if(marker)marker.group.getWorldPosition(desiredTarget);
+  workspace.classList.add("detail-open");
+  /** @type {HTMLElement} */(document.getElementById("listView")).hidden=true;
+  const detail=/** @type {HTMLElement} */(document.getElementById("detailView"));detail.hidden=false;
+  const session=AX.session();
+  const isGrid=!!session&&session.user.role===AX.ROLE.GRID;
+  const resident=event&&event.residentId?AX.resident(event.residentId):null;
+  const assignee=event&&event.assignedTo?AX.user(event.assignedTo):null;
+  const template=AX.EVENT_TYPES.find(item=>item.name===alert.type);
+  const advice=template?template.advice:"请联系住户核实情况，必要时安排上门查看。";
+  const steps=event&&event.timeline?event.timeline.slice(-4):[];
+  const stepsHtml=steps.length?steps.map(step=>`<div class="mini-step"><i></i><span><b>${esc(step.action)}</b><small>${esc(step.actorName)} · ${AX.fmtShort(step.at)}</small>${step.note?`<em>${esc(step.note)}</em>`:""}</span></div>`).join(""):'<p class="empty-note">暂无处置记录</p>';
+  const profileHtml=resident
+    ?`<div class="elder-dropdown" id="elderDropdown"><button class="elder-dropdown__trigger" id="elderTrigger" type="button" aria-expanded="false" aria-controls="elderDropdownPanel" data-resident-id="${esc(resident.id)}"><span class="elder-dropdown__dot" aria-hidden="true"></span><span class="elder-dropdown__label">查看住户简介</span><span class="elder-dropdown__hint">${esc(resident.name)} · 点击打开</span><svg class="elder-dropdown__chev" viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path d="M3 5.5 8 10.5 13 5.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button></div>`
+    :`<div class="detail-no-profile">该事件未关联住户关怀档案，可在处置台手动补充联系信息。</div>`;
+  detail.innerHTML=`<div class="detail-content"><button class="detail-back" id="backButton" type="button">← 返回列表</button>
+    <span class="panel-kicker">ALERT DETAIL / ${esc(alert.id)}</span>
+    <h2 class="detail-title">${esc(alert.type)}</h2><p class="detail-sub">告警点已在左侧模型中定位</p>
+    <div class="detail-hero"><span class="level ${levelClass(alert.level)}">${levelName(alert.level)}告警</span><p>${esc(alert.description)}</p></div>
+    <div class="detail-grid">
+      <div><span>住户位置</span><b>${esc(getBuilding(alert.building).name)}<br>${esc(alert.unit)} ${alert.floor}层 ${esc(alert.room)}室</b></div>
+      <div><span>发生时间</span><b>${esc(alert.time)}</b></div>
+      <div><span>告警等级</span><b>${levelName(alert.level)}</b></div>
+      <div><span>处理状态</span><b id="detailStatus">${esc(alert.status)}</b></div>
+      <div><span>处置网格员</span><b>${assignee?esc(assignee.name):"未指派 · 公共事件池"}</b></div>
+      <div><span>关联住户</span><b>${resident?esc(resident.name+"（"+resident.ageText+"）"):"临时住户 · 无档案"}</b></div>
+      <div><span>触发来源</span><b>${event&&event.source==="simulator"?"管理员模拟器":"感知设备上报"}</b></div>
+      <div><span>处置进展</span><b>${steps.length?esc(steps[steps.length-1].action):"等待接收"}</b></div>
+    </div>
+    <div class="detail-section"><h3>设备依据</h3><div class="evidence">${esc(alert.device)}</div></div>
+    <div class="detail-section"><h3>处置建议</h3><div class="evidence advice">${esc(advice)}</div></div>
+    <div class="detail-section"><h3>处置时间线</h3><div class="mini-timeline">${stepsHtml}</div></div>
+    <div class="actions"><button id="detailPrimary" class="primary" type="button">${isGrid?"前往处置台":"查看处置记录"}</button><button id="detailRelocate" type="button">重新定位告警点</button></div>
+    ${profileHtml}</div>`;
+  closeElderDropdown(true);positionElderTrigger();
+  /** @type {HTMLElement} */(document.getElementById("backButton")).addEventListener("click",closeDetail);
+  /** @type {HTMLElement} */(document.getElementById("detailPrimary")).addEventListener("click",()=>{
+    if(!window.AXConsole)return;
+    if(isGrid)AXConsole.openTask(id);else AXConsole.openRecord(id);
+  });
+  /** @type {HTMLElement} */(document.getElementById("detailRelocate")).addEventListener("click",()=>{
+    selectFloor(alert.building,alert.floor);showToast(`${alert.id} 已在三维模型中重新定位`);
+  });
+  requestAnimationFrame(resize);
+}
+/* 状态变更统一由 store.js 的处置流转负责，此处不再直接改写事件对象。 */
 /** @returns {void} */
 function closeDetail(){selectedAlert="";workspace.classList.remove("detail-open");closeElderDropdown(true);/** @type {HTMLElement} */(document.getElementById("listView")).hidden=false;/** @type {HTMLElement} */(document.getElementById("detailView")).hidden=true;desiredTarget.set(0,4.4,0);desiredRadius=31;requestAnimationFrame(resize);}
 /** @param {string} message @returns {void} */
 function showToast(message){const toast=/** @type {HTMLElement} */(document.getElementById("toast"));toast.textContent=message;toast.classList.add("show");window.setTimeout(()=>toast.classList.remove("show"),2800);}
+window.AXToast=showToast;
+AX.subscribe(syncAlerts);
 /** @returns {void} */
 function resetView(){selectedBuilding="";selectedFloor=0;selectedAlert="";for(const tower of towerObjects.values()){tower.selection.visible=false;tower.floorHighlight.visible=false;}closeDetail();/** @type {HTMLElement} */(document.getElementById("floorPicker")).hidden=true;theta=.56;phi=1.13;neighborhood.rotation.y=0;/** @type {HTMLElement} */(document.getElementById("sceneHint")).textContent="点击楼栋查看楼层";}
 /** @returns {void} */
@@ -202,8 +329,8 @@ function openElderDropdown(){
   const panel=elderPanel();
   const overlay=document.getElementById("elderOverlay");
   const frame=panel.querySelector(".elder-card-frame");
-  const id=trigger.dataset.alertId;
-  if(frame.dataset.alertId!==id){frame.src=`profile-card/dist/index.html?id=${encodeURIComponent(id)}`;frame.dataset.alertId=id;}
+  const id=trigger.dataset.residentId||"AX-003";
+  if(frame.dataset.residentId!==id){frame.src=`profile-card/dist/index.html?id=${encodeURIComponent(id)}`;frame.dataset.residentId=id;}
   overlay.hidden=false;
   panel.hidden=false;
   dd.classList.add("is-open");

@@ -5,23 +5,49 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>安响 · 社区告警与处置</title>
   <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="console.css">
 </head>
 <body>
+  <div class="boot-mask" id="bootMask"><div class="boot-box"><span class="boot-spinner"></span><b>正在连接本地服务…</b><small>Python 3 · SQLite · 服务端会话</small></div></div>
   <div class="app">
+    <header class="topbar" id="topbar"></header>
     <main>
-      <div class="page-heading"><div><span class="eyebrow">安响 · 社区告警与处置</span><h1>社区告警总览</h1><p>澄湾社区 · 原型演示数据 <span class="heading-separator">·</span> 在空间中定位风险，让每一次处置都有迹可循。</p></div><div class="summary"><span><b>05</b> 栋住宅</span><span><b>02</b> 条紧急</span><span><b>05</b> 条告警</span><small>2026 / 11 / 07</small></div></div>
+      <div class="page-heading"><div><span class="eyebrow">安响 · 社区告警与处置</span><h1>社区告警总览</h1><p>澄湾社区 · SQLite 持久化数据 <span class="heading-separator">·</span> 在空间中定位风险，让每一次处置都有迹可循。</p></div><div class="summary"><span><b>05</b> 栋住宅</span><span><b>02</b> 条紧急</span><span><b>05</b> 条告警</span><small>2026 / 11 / 07</small></div></div>
       <div class="workspace" id="workspace">
         <section class="scene-panel" aria-label="可交互三维社区模型">
           <div class="panel-head"><div><span class="panel-kicker">SPACE VIEW / 01</span><h2>社区空间模型</h2><p>拖动旋转视角 · 滚轮缩放 · 点击楼栋与楼层</p></div><span class="live-badge"><i></i> 模型实时交互</span></div>
           <div class="scene-wrap" id="sceneWrap"><div id="scene"></div><div class="scene-overlay top-left"><span class="tiny-square"></span> 澄湾社区 · 住宅区</div><div class="scene-hint" id="sceneHint">点击楼栋查看楼层</div><div class="floor-picker" id="floorPicker" hidden><div class="picker-head"><strong id="pickerTitle">楼层</strong><button id="closePicker" type="button" aria-label="关闭楼层选择">×</button></div><div id="floorGrid" class="floor-grid"></div></div><div class="scene-controls"><button id="rotationButton" type="button">Ⅱ 暂停旋转</button><button id="resetButton" type="button">↺ 复位视角</button></div></div>
           <div class="scene-footer"><span><i class="legend-dot red"></i> 紧急</span><span><i class="legend-dot amber"></i> 较高</span><span><i class="legend-dot gold"></i> 关注</span><span class="footer-note">告警点随楼栋三维位置移动</span></div>
         </section>
-        <aside class="alert-panel" aria-label="告警信息"><div id="listView"><div class="aside-head"><span class="panel-kicker">ALERT CENTER / 02</span><h2>实时告警 <em>05</em></h2><p>按告警等级和发生时间排列</p></div><div class="list-tools"><span>当前事件</span><span>共 5 条</span></div><div id="alertList" class="alert-list"></div><div class="aside-foot">此页面使用原型演示数据，不连接真实设备。</div></div><div id="detailView" hidden></div></aside>
+        <aside class="alert-panel" aria-label="告警信息"><div id="listView"><div class="aside-head"><span class="panel-kicker">ALERT CENTER / 02</span><h2>实时告警 <em>05</em></h2><p>按告警等级和发生时间排列</p></div><div class="list-tools"><span>当前事件</span><span>共 5 条</span></div><div id="alertList" class="alert-list"></div><div class="aside-foot">事件与处置记录存于 SQLite，多窗口实时同步；可通过顶部导航切换角色工作台。</div></div><div id="detailView" hidden></div></aside>
       </div>
+      <section class="console-view" id="consoleView" hidden aria-label="角色工作台"></section>
     </main>
   </div>
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
   <script src="vendor/three.min.js"></script>
+  <script src="api.js"></script>
+  <script src="store.js"></script>
+  <script src="auth.js"></script>
   <script src="app.js"></script>
+  <script src="console.js"></script>
+  <script>
+  /* 启动顺序：先向服务端取回会话与数据快照，再渲染外壳与角色工作台，最后开启轮询同步。 */
+  (async function () {
+    var mask = document.getElementById("bootMask");
+    var boot = await AX.init();
+    if (!boot.ok) {
+      if (boot.status === 401) { location.replace("login.html"); return; }
+      mask.innerHTML = '<div class="boot-box boot-error"><b>无法连接本地服务</b><p id="bootErrMsg"></p>' +
+        '<small>请双击「start.bat」启动 server.py（需要 Python 3），然后刷新本页。</small></div>';
+      document.getElementById("bootErrMsg").textContent = boot.message || "未知错误";
+      return;
+    }
+    AXAuth.start();
+    AXConsole.start();
+    mask.remove();
+    AX.startPolling(2500);
+  })();
+  </script>
 </body>
 </html>

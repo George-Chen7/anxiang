@@ -1,0 +1,19 @@
+node_modules/
+.DS_Store
+Thumbs.db
+*.log
+.workbuddy/
+.vscode/
+.idea/
+
+# SQLite 数据库与 WAL 附属文件（运行时自动生成，不入库）
+anxiang.db
+anxiang.db-wal
+anxiang.db-shm
+_test_*.db
+_test_*.db-wal
+_test_*.db-shm
+
+# Python 字节码
+__pycache__/
+*.pyc

@@ -1,5 +1,6 @@
-"""Local static server for demo1.
-Run by double-clicking 双击启动.bat. No installation needed if Python is available.
+"""Static-only server for the archived prototype (web/static.html).
+Run with `python serve.py`. It has no /api/* routes, so the full system
+in index.html will not work here; use web/start.bat -> server.py instead.
 """
 import functools
 import http.server
@@ -45,7 +46,7 @@ def main():
         print("ERROR: no free port between 8765 and 8775.")
         sys.exit(1)
 
-    url = "http://127.0.0.1:%d/index.html" % server.server_address[1]
+    url = "http://127.0.0.1:%d/static.html" % server.server_address[1]
     print("Local server started: " + url)
     print("Folder: " + ROOT)
     print("Keep this window open. Close it or press Ctrl+C to stop the server.")

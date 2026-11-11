@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>安响 · 社区告警与处置</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="app">
+    <main>
+      <div class="page-heading"><div><span class="eyebrow">安响 · 社区告警与处置</span><h1>社区告警总览</h1><p>澄湾社区 · 原型演示数据 <span class="heading-separator">·</span> 在空间中定位风险，让每一次处置都有迹可循。</p></div><div class="summary"><span><b>05</b> 栋住宅</span><span><b>02</b> 条紧急</span><span><b>05</b> 条告警</span><small>2026 / 11 / 07</small></div></div>
+      <div class="workspace" id="workspace">
+        <section class="scene-panel" aria-label="可交互三维社区模型">
+          <div class="panel-head"><div><span class="panel-kicker">SPACE VIEW / 01</span><h2>社区空间模型</h2><p>拖动旋转视角 · 滚轮缩放 · 点击楼栋与楼层</p></div><span class="live-badge"><i></i> 模型实时交互</span></div>
+          <div class="scene-wrap" id="sceneWrap"><div id="scene"></div><div class="scene-overlay top-left"><span class="tiny-square"></span> 澄湾社区 · 住宅区</div><div class="scene-hint" id="sceneHint">点击楼栋查看楼层</div><div class="floor-picker" id="floorPicker" hidden><div class="picker-head"><strong id="pickerTitle">楼层</strong><button id="closePicker" type="button" aria-label="关闭楼层选择">×</button></div><div id="floorGrid" class="floor-grid"></div></div><div class="scene-controls"><button id="rotationButton" type="button">Ⅱ 暂停旋转</button><button id="resetButton" type="button">↺ 复位视角</button></div></div>
+          <div class="scene-footer"><span><i class="legend-dot red"></i> 紧急</span><span><i class="legend-dot amber"></i> 较高</span><span><i class="legend-dot gold"></i> 关注</span><span class="footer-note">告警点随楼栋三维位置移动</span></div>
+        </section>
+        <aside class="alert-panel" aria-label="告警信息"><div id="listView"><div class="aside-head"><span class="panel-kicker">ALERT CENTER / 02</span><h2>实时告警 <em>05</em></h2><p>按告警等级和发生时间排列</p></div><div class="list-tools"><span>当前事件</span><span>共 5 条</span></div><div id="alertList" class="alert-list"></div><div class="aside-foot">此页面使用原型演示数据，不连接真实设备。</div></div><div id="detailView" hidden></div></aside>
+      </div>
+    </main>
+  </div>
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  <script src="vendor/three.min.js"></script>
+  <script src="static-app.js"></script>
+</body>
+</html>
