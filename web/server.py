@@ -8,7 +8,7 @@
   hashlib.pbkdf2_hmac (database)  密码哈希
 
 启动：双击 web/start.bat，或执行 `python server.py`
-默认地址：http://127.0.0.1:8765/login.html
+默认地址：http://127.0.0.1:8765/welcome.html
 
 安全边界：
   - 仅监听 127.0.0.1（本机），不对外暴露；
@@ -144,6 +144,8 @@ class Handler(SimpleHTTPRequestHandler):
     # ------------------------------------------------------------ 请求入口
     def do_GET(self):
         path = unquote(urlparse(self.path).path)
+        if path == "/":
+            self.path = "/welcome.html"
         if path.startswith("/api/"):
             return self.handle_api("GET", path, {})
         if not self._static_allowed(path):
@@ -293,7 +295,7 @@ def main():
         print("ERROR: 8765-8775 端口均被占用，无法启动。")
         sys.exit(1)
 
-    url = "http://127.0.0.1:%d/login.html" % server.server_address[1]
+    url = "http://127.0.0.1:%d/welcome.html" % server.server_address[1]
     print("=" * 62)
     print(" 安响 · 社区告警与处置  (Python + SQLite)")
     print(" 访问地址 : %s" % url)

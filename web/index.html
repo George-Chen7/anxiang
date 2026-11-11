@@ -3,9 +3,13 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <script>
+    if (location.pathname.endsWith("/")) location.replace("welcome.html");
+  </script>
   <title>安响 · 社区告警与处置</title>
   <link rel="stylesheet" href="style.css">
   <link rel="stylesheet" href="console.css">
+  <link rel="stylesheet" href="page-transition.css">
 </head>
 <body>
   <div class="boot-mask" id="bootMask"><div class="boot-box"><span class="boot-spinner"></span><b>正在连接本地服务…</b><small>Python 3 · SQLite · 服务端会话</small></div></div>
@@ -29,6 +33,7 @@
   <script src="api.js"></script>
   <script src="store.js"></script>
   <script src="auth.js"></script>
+  <script src="architecture.js"></script>
   <script src="app.js"></script>
   <script src="console.js"></script>
   <script>
@@ -37,7 +42,7 @@
     var mask = document.getElementById("bootMask");
     var boot = await AX.init();
     if (!boot.ok) {
-      if (boot.status === 401) { location.replace("login.html"); return; }
+      if (boot.status === 401) { location.replace("welcome.html"); return; }
       mask.innerHTML = '<div class="boot-box boot-error"><b>无法连接本地服务</b><p id="bootErrMsg"></p>' +
         '<small>请双击「start.bat」启动 server.py（需要 Python 3），然后刷新本页。</small></div>';
       document.getElementById("bootErrMsg").textContent = boot.message || "未知错误";

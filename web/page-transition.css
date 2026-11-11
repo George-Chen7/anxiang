@@ -1,0 +1,40 @@
+/* Shared by the three entry pages, including links, redirects and history navigation. */
+@view-transition {
+  navigation: auto;
+}
+
+::view-transition-group(root) {
+  animation-duration: 360ms;
+  animation-timing-function: cubic-bezier(.22, 1, .36, 1);
+}
+
+::view-transition-old(root) {
+  animation: ax-page-out 220ms ease-out both;
+  mix-blend-mode: normal;
+}
+
+::view-transition-new(root) {
+  animation: ax-page-in 360ms cubic-bezier(.22, 1, .36, 1) both;
+  mix-blend-mode: normal;
+}
+
+@keyframes ax-page-out {
+  to { opacity: 0; }
+}
+
+@keyframes ax-page-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  @view-transition {
+    navigation: none;
+  }
+
+  ::view-transition-group(root),
+  ::view-transition-old(root),
+  ::view-transition-new(root) {
+    animation: none;
+  }
+}

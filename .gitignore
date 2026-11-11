@@ -13,7 +13,29 @@ anxiang.db-shm
 _test_*.db
 _test_*.db-wal
 _test_*.db-shm
-
 # Python 字节码
 __pycache__/
 *.pyc
+# Local WorkBuddy application bindings and operation history
+.wbapp_*.genie
+# Machine-specific editor settings
+# Credentials and local environment overrides
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+.npmrc
+# Installed dependencies and runtime caches
+.venv/
+venv/
+*.py[cod]
+.vite/
+# Local logs and temporary files
+*.tmp
+*.swp
+*.swo
+Desktop.ini
+# web/profile-card/dist/ is required by the static site and stays tracked.
