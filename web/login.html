@@ -26,12 +26,12 @@
       <h1>让每一次告警<br>都有人接住，<br><em>都有迹可循。</em></h1>
         <p>面向平台管理员与社区网格员的协同处置原型。管理员模拟触发异常事件，网格员接收、联系、上门并记录结果，全流程可追溯。</p>
         <div class="hero-features">
-          <div><span class="feature-icon">◈</span><div><b>事件模拟</b><small>7 类异常场景 · 一键发出告警</small></div></div>
-          <div><span class="feature-icon">☑</span><div><b>闭环处置</b><small>接收 → 联系 → 上门 → 办结</small></div></div>
+          <div><span class="feature-icon">◈</span><div><b>事件模拟</b><small>疑似跌倒 · 异常静止 · 主动求助</small></div></div>
+          <div><span class="feature-icon">☑</span><div><b>闭环处置</b><small>联系核实 · 持续跟进 · 记录结果</small></div></div>
           <div><span class="feature-icon">▤</span><div><b>全程留痕</b><small>处置时间线与操作日志</small></div></div>
         </div>
       </div>
-      <div class="hero-foot"><span>澄湾社区 · 原型演示</span><span>数据仅保存在本地浏览器</span></div>
+      <div class="hero-foot"><span>澄湾社区 · 原型演示</span><span>演示数据保存在本机 SQLite</span></div>
     </section>
 
     <section class="login-panel" aria-label="登录">
@@ -66,6 +66,21 @@
           <div class="login-error" id="loginError" role="alert" hidden></div>
           <button type="submit" class="login-submit" id="loginSubmit">登录工作台 <span aria-hidden="true">→</span></button>
         </form>
+
+        <details class="registration" id="registration">
+          <summary>使用邀请码注册账号</summary>
+          <form id="registerForm">
+            <label class="field"><span>受邀角色</span><select name="role"><option value="grid">社区网格员</option><option value="admin">平台管理员</option></select></label>
+            <label class="field"><span>一次性邀请码</span><input name="code" autocomplete="off" required></label>
+            <label class="field"><span>姓名</span><input name="name" autocomplete="name" maxlength="32" required></label>
+            <label class="field"><span>账号（3 至 32 位字母、数字或下划线）</span><input name="username" autocomplete="username" pattern="[A-Za-z0-9_]{3,32}" maxlength="32" required></label>
+            <label class="field"><span>密码（至少 8 位）</span><input name="password" type="password" autocomplete="new-password" minlength="8" maxlength="128" required></label>
+            <p class="field-hint">请向管理员领取对应角色的邀请码。首次配置见项目 README 的「本地账号注册与授权」。</p>
+            <button type="submit" class="login-submit">注册账号</button>
+            <p id="registerError" role="alert"></p>
+          </form>
+        </details>
+        <p id="registerStatus" role="status"></p>
 
         <div class="demo-accounts">
           <div class="demo-head"><span>演示账号</span><small>点击即可一键填入</small></div>
@@ -143,6 +158,24 @@
       password.type = show ? "text" : "password";
       this.textContent = show ? "隐藏" : "显示";
       this.setAttribute("aria-label", show ? "隐藏密码" : "显示密码");
+    });
+    document.getElementById("registerForm").addEventListener("submit", async function (event) {
+      event.preventDefault();
+      var register = event.currentTarget;
+      var submit = register.querySelector("button");
+      if (submit.disabled) return;
+      submit.disabled = true;
+      var data = Object.fromEntries(new FormData(register));
+      var result = await AXAPI.request("POST", "/api/register", data);
+      submit.disabled = false;
+      var error = document.getElementById("registerError");
+      error.textContent = result.ok ? "" : result.message;
+      if (!result.ok) return;
+      fill(data.username.trim().toLowerCase(), "", data.role);
+      register.reset();
+      document.getElementById("registration").open = false;
+      document.getElementById("registerStatus").textContent = "注册成功，请输入密码登录。";
+      password.focus();
     });
     form.addEventListener("submit", async function (event) {
       event.preventDefault();

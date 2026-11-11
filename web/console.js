@@ -16,8 +16,8 @@
   var workspace = document.getElementById("workspace");
   var view = "overview";
   var ui = {
-    simType: AX.EVENT_TYPES[0].key,
-    simLevel: AX.EVENT_TYPES[0].level,
+    simType: null,
+    simLevel: null,
     taskTab: "todo",
     selectedTask: null,
     resolveMode: "dispatch",
@@ -43,7 +43,7 @@
   function statusChip(status) {
     return '<span class="status-chip is-' + statusTone(status) + '">' + esc(status) + "</span>";
   }
-  function sourceLabel(e) { return e.source === "simulator" ? "模拟器触发" : "设备上报"; }
+  function sourceLabel(e) { return e.source === "simulator" ? "模拟器触发" : "模拟设备上报"; }
   function assigneeLabel(e) {
     var u = e.assignedTo ? AX.user(e.assignedTo) : null;
     return u ? u.name : "公共事件池";
@@ -99,7 +99,8 @@
     render();
   }
   function render() {
-    if (view === "simulator") renderSimulator();
+    if (view === "invitations") renderInvitations();
+    else if (view === "simulator") renderSimulator();
     else if (view === "tasks") renderTasks();
     else if (view === "records") renderRecords();
   }
@@ -110,6 +111,14 @@
   }
 
   /* ================= 管理员：异常事件模拟器 ================= */
+  function renderInvitations() {
+    root.innerHTML = consoleHead("", "账号授权", "按申请人的职责选择角色，将一次性邀请码交给本人。", "") +
+      '<section class="panel sim-form"><form data-form="invite">' +
+      '<label class="field">授权角色<select name="role"><option value="grid">社区网格员</option>' +
+      '<option value="admin">平台管理员（可继续授权）</option></select></label>' +
+      '<button type="submit" class="primary-btn">生成一次性邀请码</button>' +
+      '<p id="inviteResult" role="status"></p></form></section>';
+  }
   function simulatorStats() {
     var s = AX.stats();
     return [
@@ -125,7 +134,7 @@
     if (node) node.outerHTML = statStrip(simulatorStats());
   }
   function renderSimulator() {
-    var template = AX.EVENT_TYPES[0];
+    var template = currentTemplate();
     var residents = AX.RESIDENTS.map(function (r) {
       return '<option value="' + esc(r.id) + '">' + esc(r.name + " · " + r.ageText + " · " + r.care) + "</option>";
     }).join("");
@@ -154,7 +163,7 @@
       '<div class="console-grid console-grid--sim">' +
         '<section class="panel sim-form">' +
           panelHead("配置模拟事件", "STEP 1 · 选择场景与位置") +
-          '<div class="form-block"><label class="form-label">异常事件类型 <em>7 类场景</em></label>' +
+          '<div class="form-block"><label class="form-label">异常事件类型 <em>' + AX.EVENT_TYPES.length + ' 类场景</em></label>' +
             '<div class="type-grid" id="typeGrid">' + types + "</div></div>" +
           '<div class="form-block"><label class="form-label">发生位置</label>' +
             '<div class="field-row four">' +
@@ -362,6 +371,7 @@
         '<span class="task-card-loc">' + esc(locShort(e)) + " · " + esc(residentLabel(e)) + "</span>" +
         '<span class="task-card-bottom"><span>' + esc(AX.fmtShort(e.time)) + "</span>" +
           statusChip(e.status) + "</span>" +
+        (followupDue(e) ? '<span class="task-card-step">下次跟进：' + esc(followupDue(e)) + "</span>" : "") +
         '<span class="task-card-step">最新：' + esc(last ? last.action : "告警产生") + "</span></button>";
     }).join("");
   }
@@ -370,7 +380,7 @@
     var index = status === AX.STATUS.PENDING ? 0 :
       status === AX.STATUS.CLAIMED ? 1 :
       status === AX.STATUS.CONTACTED ? 2 :
-      status === AX.STATUS.DISPATCHED ? 3 : 4;
+      status === AX.STATUS.DISPATCHED || status === AX.STATUS.FOLLOWUP ? 3 : 4;
     return '<div class="step-track">' + steps.map(function (label, i) {
       var cls = i < index ? "done" : i === index ? "current" : "";
       if (i === 2 && skipped && i < index) cls = "skipped";
@@ -383,6 +393,9 @@
         '<div class="timeline-top"><b>' + esc(s.action) + "</b><span>" + esc(AX.fmtShort(s.at)) + "</span></div>" +
         '<small>' + esc(s.actorName) + (s.note ? " · " + esc(s.note) : "") + "</small></div></div>";
     }).join("") + "</div>";
+  }
+  function followupDue(e) {
+    return e.status === AX.STATUS.FOLLOWUP ? (e.result.nextFollowupAt || "待补登记") : "";
   }
   function taskFormHtml(e) {
     var S = AX.STATUS;
@@ -409,38 +422,38 @@
             '<label class="field"><span>联系方式</span><select name="channel"><option>电话</option><option>微信</option><option>家属电话</option><option>现场喊话</option><option>物业转达</option></select></label>' +
             '<label class="field"><span>联系结果</span><select name="outcome"><option>已接通</option><option>无人接听</option><option>已联系家属</option><option>号码异常</option></select></label>' +
           "</div>" +
-          '<label class="field"><span>联系情况说明 <em class="req">必填</em></span><textarea name="note" rows="3" placeholder="例如：已电话联系住户本人，称正在做饭未察觉，需上门复核燃气阀门"></textarea></label>' +
+          '<label class="field"><span>联系情况说明 <em class="req">必填</em></span><textarea name="note" rows="3" placeholder="例如：两次电话均无人接听，已联系家属核实去向"></textarea></label>' +
           '<button type="submit" class="primary-btn">记录联系住户 <span aria-hidden="true">→</span></button>' +
         "</form></div>";
     }
-    if (e.status === S.CONTACTED) {
+    if (e.status === S.CONTACTED || e.status === S.FOLLOWUP) {
       var dispatchForm =
         '<form data-form="dispatch" data-id="' + esc(e.id) + '">' +
           '<div class="field-row two">' +
             '<label class="field"><span>上门时间 <em class="req">必填</em></span><input name="time" type="datetime-local" value="' + esc(localDateTime(1)) + '"></label>' +
             '<label class="field"><span>随行人员</span><input name="staff" value="' + esc(me.name) + '"></label>' +
           "</div>" +
-          '<label class="field"><span>上门备注（选填）</span><input name="note" placeholder="例如：携带燃气检测仪，联动物业一同前往"></label>' +
+          '<label class="field"><span>上门备注（选填）</span><input name="note" placeholder="例如：与社区同事一同前往核实"></label>' +
           '<button type="submit" class="primary-btn">安排上门处置 <span aria-hidden="true">→</span></button>' +
         "</form>";
       var resolveForm = '<form data-form="resolve" data-id="' + esc(e.id) + '">' + resolutionFields() +
-        '<button type="submit" class="primary-btn">提交处理结果并办结</button></form>';
-      return '<div class="action-box"><h4>下一步 · 安排上门或远程办结</h4>' +
-        '<p class="action-tip">电话已核实且无需现场处置时，可直接记录结果办结。</p>' +
+        '<button type="submit" class="primary-btn">保存处理记录</button></form>';
+      return '<div class="action-box"><h4>安排上门或记录核实结果</h4>' +
+        '<p class="action-tip">尚需核实时，选择「记录结果 / 跟进」并登记下次跟进时间。</p>' +
         stepTrack(e.status) +
         '<div class="mini-tabs">' +
           '<button type="button" class="mini-tab' + (ui.resolveMode === "dispatch" ? " active" : "") +
             '" data-action="resolve-mode" data-mode="dispatch">安排上门</button>' +
           '<button type="button" class="mini-tab' + (ui.resolveMode === "direct" ? " active" : "") +
-            '" data-action="resolve-mode" data-mode="direct">无需上门 · 直接办结</button>' +
+            '" data-action="resolve-mode" data-mode="direct">记录结果 / 跟进</button>' +
         "</div>" + (ui.resolveMode === "direct" ? resolveForm : dispatchForm) + "</div>";
     }
     if (e.status === S.DISPATCHED) {
       return '<div class="action-box"><h4>最后一步 · 记录处理结果</h4>' +
-        '<p class="action-tip">填写现场核实结论，提交后事件闭环，管理员可在处置记录中查看。</p>' +
+        '<p class="action-tip">填写现场核实情况。如仍需跟进，请登记下一次核实时间。</p>' +
         stepTrack(e.status) +
         '<form data-form="resolve" data-id="' + esc(e.id) + '">' + resolutionFields() +
-          '<button type="submit" class="primary-btn">提交处理结果并办结</button></form></div>';
+          '<button type="submit" class="primary-btn">保存处理记录</button></form></div>';
     }
     return '<div class="action-box is-complete"><h4>✓ 事件已办结</h4>' +
       '<div class="result-summary"><div><span>处理结论</span><b>' + esc(e.result ? e.result.resolution : "—") + "</b></div>" +
@@ -454,17 +467,18 @@
     }).join("");
     return '<div class="field-row two">' +
       '<label class="field"><span>处理结论 <em class="req">必填</em></span><select name="resolution">' + options + "</select></label>" +
+      '<label class="field" hidden><span>下次跟进时间</span><input type="datetime-local" name="nextFollowupAt" disabled></label>' +
       '<div class="resolution-legend"><span>结论口径</span><small>已排除风险 / 已现场处置 / 转交其他部门 / 设备误报 / 需持续跟进</small></div>' +
       "</div>" +
-      '<label class="field"><span>处理结果说明 <em class="req">必填</em></span><textarea name="note" rows="3" placeholder="例如：现场确认燃气阀门未关紧，已协助关闭并通风，复测读数恢复正常，住户无不适"></textarea></label>';
+      '<label class="field"><span>处理结果说明 <em class="req">必填</em></span><textarea name="note" rows="3" placeholder="例如：家属已到场，确认住户安全并记录现场情况"></textarea></label>';
   }
   function refreshTaskDetail() {
     var node = document.getElementById("taskDetail");
     if (!node) return;
     var e = ui.selectedTask ? AX.event(ui.selectedTask) : null;
-    var bucket = taskBucket();
-    if (!e || (!bucket.todo.concat(bucket.active, bucket.done).some(function (x) { return x.id === e.id; }))) {
-      var fallback = bucket.todo[0] || bucket.active[0] || bucket.done[0];
+    var bucket = taskBucket()[ui.taskTab];
+    if (!e || !bucket.some(function (x) { return x.id === e.id; })) {
+      var fallback = bucket[0];
       e = fallback || null;
       ui.selectedTask = e ? e.id : null;
       refreshTaskList();
@@ -480,6 +494,7 @@
         '<div><span>发生时间</span><b>' + esc(e.time) + "</b></div>" +
         '<div><span>触发来源</span><b>' + esc(sourceLabel(e)) + "</b></div>" +
         '<div><span>处置网格员</span><b>' + esc(assigneeLabel(e)) + "</b></div>" +
+        (followupDue(e) ? "<div><span>下次跟进</span><b>" + esc(followupDue(e)) + "</b></div>" : "") +
         '<div class="full"><span>设备依据</span><b>' + esc(e.device) + "</b></div>" +
       "</div>" +
       (r ? '<div class="td-resident"><span class="resident-avatar">' + esc(r.name.charAt(0)) + "</span>" +
@@ -520,7 +535,7 @@
             Object.keys(AX.STATUS).map(function (k) { return '<option value="' + esc(AX.STATUS[k]) + '">' + esc(AX.STATUS[k]) + "</option>"; }).join("") +
           "</select></label>" +
           '<label class="field"><span>等级</span><select id="filterLevel"><option value="all">全部等级</option><option value="3">紧急</option><option value="2">较高</option><option value="1">关注</option></select></label>' +
-          '<label class="field"><span>来源</span><select id="filterSource"><option value="all">全部来源</option><option value="simulator">模拟器触发</option><option value="seed">设备上报</option></select></label>' +
+          '<label class="field"><span>来源</span><select id="filterSource"><option value="all">全部来源</option><option value="simulator">模拟器触发</option><option value="seed">模拟设备上报</option></select></label>' +
           '<label class="field grow"><span>搜索</span><input id="filterKeyword" placeholder="事件编号 / 类型 / 位置 / 住户"></label>' +
         "</div>" +
         '<div class="table-wrap" id="recordTable"></div>' +
@@ -581,6 +596,7 @@
         "<div><span>处置网格员</span><b>" + esc(assigneeLabel(e)) + "</b></div>" +
         "<div><span>当前状态</span><b>" + esc(e.status) + "</b></div>" +
         "<div><span>处理结论</span><b>" + esc(e.result ? e.result.resolution : "未办结") + "</b></div>" +
+        (followupDue(e) ? "<div><span>下次跟进</span><b>" + esc(followupDue(e)) + "</b></div>" : "") +
         (e.contact ? '<div><span>联系记录</span><b>' + esc(e.contact.channel + " / " + e.contact.outcome) + "</b></div>" : "") +
         (e.dispatch ? '<div><span>上门安排</span><b>' + esc(prettyTime(e.dispatch.time) + " · " + e.dispatch.staff) + "</b></div>" : "") +
       "</div>" + (e.result ? '<div class="rd-note"><span>处理结果说明</span><p>' + esc(e.result.note) + "</p></div>" : "") +
@@ -656,6 +672,14 @@
     var target = event.target;
     if (!(target instanceof Element)) return;
     var id = target.id;
+    if (target.name === "resolution") {
+      var due = target.form.elements.nextFollowupAt;
+      var followup = target.value === "followup";
+      due.closest("label").hidden = !followup;
+      due.disabled = !followup;
+      due.required = followup;
+      if (followup && !due.value) due.value = localDateTime(1);
+    }
     if (id === "simResident") {
       var r = AX.RESIDENTS.find(function (x) { return x.id === target.value; });
       if (r) {
@@ -685,11 +709,26 @@
     var data = new FormData(form);
     var value = function (key) { return String(data.get(key) || "").trim(); };
     var result;
+    if (kind === "invite") {
+      var button = form.querySelector("button");
+      if (button.disabled) return;
+      button.disabled = true;
+      result = await AXAPI.request("POST", "/api/invitations", {role: value("role")});
+      button.disabled = false;
+      form.querySelector("#inviteResult").textContent = result.ok
+        ? (result.role === "admin" ? "管理员" : "网格员") + "邀请码：" + result.code + "（有效期至 " + result.expiresAt + "）"
+        : result.message;
+      return;
+    }
+    var save = form.querySelector('button[type="submit"]');
+    if (save.disabled) return;
+    save.disabled = true;
     if (kind === "claim") result = await AX.claim(id, value("note"));
     else if (kind === "contact") result = await AX.contact(id, { channel: value("channel"), outcome: value("outcome"), note: value("note") });
     else if (kind === "dispatch") result = await AX.dispatch(id, { time: prettyTime(value("time")), staff: value("staff"), note: value("note") });
-    else if (kind === "resolve") result = await AX.resolve(id, { resolution: value("resolution"), note: value("note") });
+    else if (kind === "resolve") result = await AX.resolve(id, { resolution: value("resolution"), note: value("note"), nextFollowupAt: value("nextFollowupAt") });
     else return;
+    save.disabled = false;
     if (!result.ok) { toast(result.message); return; }
     var messages = {
       claim: "已接收事件 " + id + "，请尽快联系住户",
@@ -697,10 +736,11 @@
       dispatch: "上门安排已记录，待现场处置后填写结果",
       resolve: "事件 " + id + " 已办结，处置结果已归档"
     };
-    toast(messages[kind]);
+    var following = kind === "resolve" && result.event.status === AX.STATUS.FOLLOWUP;
+    toast(following ? "跟进计划已保存，事件保留在处理中" : messages[kind]);
     ui.selectedTask = id;
     ui.resolveMode = "dispatch";
-    if (kind === "resolve") ui.taskTab = "done";
+    if (kind === "resolve") ui.taskTab = following ? "active" : "done";
     else if (kind === "claim" || kind === "contact" || kind === "dispatch") ui.taskTab = "active";
     refreshTaskStats(); refreshTaskList(); refreshTaskDetail();
   }
@@ -710,6 +750,8 @@
     var s = AX.session();
     if (!s) return;
     me = s.user;
+    ui.simType = AX.EVENT_TYPES[0].key;
+    ui.simLevel = AX.EVENT_TYPES[0].level;
     isAdmin = me.role === AX.ROLE.ADMIN;
     root.addEventListener("click", onClick);
     root.addEventListener("change", onChange);

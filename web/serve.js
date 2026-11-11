@@ -30,6 +30,9 @@ function listen(port) {
     if (file !== ROOT && !file.startsWith(ROOT + path.sep)) {
       res.writeHead(403); res.end('Forbidden'); return;
     }
+    if (path.basename(file).toLowerCase().startsWith('anxiang.db')) {
+      res.writeHead(404); res.end('Not found'); return;
+    }
     fs.readFile(file, (err, data) => {
       if (err) { res.writeHead(404); res.end('Not found'); return; }
       res.writeHead(200, {

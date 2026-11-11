@@ -21,6 +21,44 @@ WorkBuddy 云端静态版：`web/serve.py` / `web/serve.js` 只提供静态文�
 
 住户卡片是独立的 React/Vite 子应用，主页面通过 iframe 加载 `web/profile-card/dist/index.html`。修改卡片源码后，在 `web/profile-card` 中执行 `npm ci` 和 `npm run build`，并将源码及更新后的 `dist/` 一起提交。
 
+## 本地账号注册与授权
+
+在仓库根目录运行下面的命令，本机维护者可为首个管理员签发邀请码。该命令和本地服务使用同一份 SQLite 数据库。
+
+```powershell
+python web/server.py --issue-admin-invite
+```
+
+1. 启动本地完整系统，在登录页展开「使用邀请码注册账号」，选择「平台管理员」，填写邀请码、姓名、自选账号和密码。
+2. 用新账号登录，打开顶部「账号授权」。选择「社区网格员」或「平台管理员」，生成邀请码并交给对应的人。邀请码绑定角色，24 小时内可使用一次。
+3. 网格员注册登录后，在「我的处置」认领公共事件或处理指派给自己的事件。受邀管理员可以授权其他账号、模拟事件和查看处置记录。登录页列出的公开演示账号仅供体验业务流程，没有签发邀请码的权限。
+
+本地默认演示以疑似跌倒和异常长时间静止为核心，主动按下求助按钮是独立场景。网格员记录联系后可安排上门、填写最终结果，或选择「需持续跟进」并登记下次核实时间。跟进任务保留在负责人的「处理中」，可再次登记跟进，也可填写最终结果办结。
+
+首次启动新版时，本地服务更新尚未处理的两条核心演示样例，并将旧版标记为已完成的「需持续跟进」恢复为待跟进。旧记录未保存下次跟进时间，工作台会显示「待补登记」。WorkBuddy 静态托管入口继续使用独立的演示登录。
+
+## 从 GitHub 拉取更新（git pull）
+
+在已经克隆的安响仓库根目录打开 PowerShell。可以在 WorkBuddy 里打开项目终端，也可以在文件资源管理器里打开同时包含 `README.md` 和 `web` 的那一层目录。先检查当前分支和远端地址。
+
+```powershell
+git status --short --branch
+git remote get-url origin
+```
+
+本项目主分支是 `main`，远端仓库是 `George-Chen7/anxiang`。如果状态中列出了正在编辑的文件，先用 `git diff` 查看内容，提交需要保留的改动或暂存到 stash 后再拉取。如果使用了 stash，可在拉取成功后用 `git stash pop` 恢复并检查改动。
+
+在 `main` 分支执行以下命令。如果目前在其他分支，先保存工作，再用 `git switch main` 切换。
+
+```powershell
+git pull --ff-only origin main
+git log -1 --oneline
+```
+
+`Already up to date.` 表示当前分支已经包含远端此次提供的提交。新功能需要先由开发者推送到 GitHub，其他电脑才能拉到。如果提示无法快进，说明本地和远端各有提交。用 `git log --oneline --left-right HEAD...origin/main` 查看双方差异，再决定如何合并。
+
+要体验本地新版，先关闭正在运行的旧版 Python 服务，再双击 [web/start.bat](web/start.bat)。每台电脑的账号、邀请码和处置记录保存在各自的 SQLite 数据库里。要更新公开分享链接，拉取代码后还需按下节步骤发布 WorkBuddy 云端版。
+
 ## WorkBuddy 发布与同步
 
 线上地址：[安响社区守护](https://anxiang-community.app.workbuddy.host/web/welcome-static.html)（当前线上仍是上一次发布的旧版本，**尚未同步本次改动**）。现有 WorkBuddy 应用 ID 为 `wbapp_hTMKOcvWyv1WuowOhi6LFW`，更新时复用该应用与域名。线上使用 WorkBuddy 云端静态版，不需要 Python 服务；演示数据存云数据库。

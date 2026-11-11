@@ -8,6 +8,7 @@
     { key: "overview", label: "总览看板", icon: "▦", roles: null },
     { key: "simulator", label: "事件模拟器", icon: "◈", roles: ["admin"] },
     { key: "tasks", label: "我的处置", icon: "☑", roles: ["grid"] },
+    { key: "invitations", label: "账号授权", icon: "◇", roles: ["admin"] },
     { key: "records", label: "处置记录", icon: "▤", roles: null }
   ];
 
@@ -17,6 +18,7 @@
   function visibleNav() {
     var s = currentSession();
     return NAV.filter(function (item) {
+      if (item.key === "invitations" && !(s && s.user.canInvite)) return false;
       return !item.roles || (s && item.roles.indexOf(s.user.role) >= 0);
     });
   }
@@ -54,10 +56,12 @@
         "</nav>" +
         '<div class="topbar-user">' +
           '<span class="role-chip ' + roleClass + '">' + roleLabel + "</span>" +
-          '<span class="user-meta"><b>' + user.name + "</b><small>" + user.team + "</small></span>" +
+          '<span class="user-meta"><b></b><small></small></span>' +
           '<button type="button" class="logout-btn" id="logoutButton" title="退出登录">退出</button>' +
         "</div>" +
       "</div>";
+    bar.querySelector(".user-meta b").textContent = user.name;
+    bar.querySelector(".user-meta small").textContent = user.team;
     bar.querySelectorAll(".nav-btn").forEach(function (button) {
       button.addEventListener("click", function () { go(button.dataset.view); });
     });
