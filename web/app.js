@@ -199,7 +199,7 @@ function openAlert(id){
       <div><span>处理状态</span><b id="detailStatus">${esc(alert.status)}</b></div>
       <div><span>处置网格员</span><b>${assignee?esc(assignee.name):"未指派 · 公共事件池"}</b></div>
       <div><span>关联住户</span><b>${resident?esc(resident.name+"（"+resident.ageText+"）"):"临时住户 · 无档案"}</b></div>
-      <div><span>触发来源</span><b>${event&&event.source==="simulator"?"管理员模拟器":"感知设备上报"}</b></div>
+      <div><span>触发来源</span><b>${event&&event.source==="simulator"?"管理员模拟器":"模拟设备上报"}</b></div>
       <div><span>处置进展</span><b>${steps.length?esc(steps[steps.length-1].action):"等待接收"}</b></div>
     </div>
     <div class="detail-section"><h3>设备依据</h3><div class="evidence">${esc(alert.device)}</div></div>

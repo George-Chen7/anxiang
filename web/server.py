@@ -16,6 +16,7 @@
   - 所有 /api/* 写操作都要求有效会话，并按角色鉴权；
   - 登录失败 5 次锁定 60 秒；Cookie 为 HttpOnly + SameSite=Lax。
 """
+import argparse
 import functools
 import json
 import os
@@ -57,7 +58,7 @@ def _rate_check(ip):
         record = _login_guard.get(ip)
         if record and record[1] > now:
             raise db.ApiError("尝试次数过多，请 %d 秒后再试" % int(record[1] - now), 429)
-        if record and record[1] <= now:
+        if record and 0 < record[1] <= now:
             _login_guard.pop(ip, None)
 
 
@@ -187,6 +188,10 @@ class Handler(SimpleHTTPRequestHandler):
                     "time": db.now_str(), "auth": "sqlite-session",
                 })
 
+            if method == "POST" and path == "/api/register":
+                db.register_account(self.read_json())
+                return self.send_json(201, {"ok": True})
+
             # 登录
             if method == "POST" and path == "/api/login":
                 _rate_check(ip)
@@ -211,6 +216,13 @@ class Handler(SimpleHTTPRequestHandler):
 
             if not user:
                 raise db.ApiError("请先登录", 401)
+
+            if method == "POST" and path == "/api/invitations":
+                db.require(user, db.ROLE_ADMIN)
+                if not user["canInvite"]:
+                    raise db.ApiError("公开演示账号没有账号授权权限", 403)
+                invitation = db.issue_invitation(self.read_json().get("role"), user["id"])
+                return self.send_json(201, {"ok": True, **invitation})
 
             if method == "GET" and path == "/api/me":
                 return self.send_json(200, {"ok": True, "user": user})
@@ -281,7 +293,15 @@ def open_browser(url):
 
 
 def main():
+    parser = argparse.ArgumentParser(description="安响本地服务")
+    parser.add_argument("--issue-admin-invite", action="store_true", help="在本机签发管理员注册邀请码")
+    args = parser.parse_args()
     db.initialize()
+    if args.issue_admin_invite:
+        invitation = db.issue_invitation(db.ROLE_ADMIN, None)
+        print("管理员一次性邀请码：", invitation["code"])
+        print("有效期至：", invitation["expiresAt"])
+        return
     handler = functools.partial(Handler, directory=ROOT)
     server = None
     for port in range(PORT_FIRST, PORT_LAST + 1):

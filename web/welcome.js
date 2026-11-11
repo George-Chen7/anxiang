@@ -208,7 +208,7 @@ function render(time){
   if(received!==(elapsed>=10)){
     received=elapsed>=10;pin.classList.toggle("active",received);
     element("status").textContent=received?"疑似跌倒 · 待核实":"等待事件";
-    element("detail").textContent=received?"B区 5号楼 · 1602 室":"社区正在值守";
+    element("detail").textContent=received?(pin.dataset.location || "B区 5号楼 · 1602 室"):"社区正在值守";
     if(received&&!reduced){
       const card=element("status").parentElement;
       const source=pin.getBoundingClientRect(),destination=card.getBoundingClientRect();

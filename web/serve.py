@@ -23,6 +23,13 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         ".mjs": "text/javascript; charset=utf-8",
     }
 
+    def send_head(self):
+        path = self.translate_path(self.path)
+        if os.path.basename(os.path.normpath(path)).lower().startswith("anxiang.db"):
+            self.send_error(404)
+            return None
+        return super().send_head()
+
     def log_message(self, *_args):
         pass
 

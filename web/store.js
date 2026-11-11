@@ -17,7 +17,7 @@
   var ROLE = { ADMIN: "admin", GRID: "grid" };
   var STATUS = {
     PENDING: "待接收", CLAIMED: "已接收", CONTACTED: "已联系住户",
-    DISPATCHED: "已安排上门", RESOLVED: "已完成"
+    DISPATCHED: "已安排上门", FOLLOWUP: "需持续跟进", RESOLVED: "已完成"
   };
   var LEVEL_NAME = { 3: "紧急", 2: "较高", 1: "关注" };
   var LEVEL_CLASS = { 3: "urgent", 2: "high", 1: "watch" };
@@ -33,15 +33,6 @@
     { id: "AX-003", name: "陈秀英", age: 85, ageText: "85 岁", building: "B5", floor: 17, unit: "2单元", room: "1702", care: "独居 · 每日关怀", contact: "陈岚（孙女）", phone: "137 **** 9063" },
     { id: "AX-004", name: "王振华", age: 74, ageText: "74 岁", building: "A2", floor: 28, unit: "1单元", room: "2801", care: "夫妻同住 · 常规关注", contact: "王磊（儿子）", phone: "136 **** 4452" },
     { id: "AX-005", name: "赵淑芬", age: 79, ageText: "79 岁", building: "C2", floor: 12, unit: "2单元", room: "1202", care: "独居 · 门磁提醒", contact: "赵宁（女儿）", phone: "135 **** 7780" }
-  ];
-  var EVENT_TYPES = [
-    { key: "gas", name: "燃气浓度异常", level: 3, icon: "◈", tone: "red", device: "燃气传感器 CH₄-{room} · 18% LEL（连续 3 次超阈值）", description: "住户厨房燃气浓度连续 3 次超过预设阈值，请尽快电话核实并安排现场排查。", advice: "优先电话联系住户，确认是否正在用火；无人接听时立即安排上门。" },
-    { key: "smoke", name: "烟雾浓度异常", level: 3, icon: "◉", tone: "red", device: "烟雾探测器 SM-{room} · 86 ppm（持续上报）", description: "烟雾探测器持续上报异常浓度，需联系住户确认现场情况并排查火情。", advice: "第一时间电话核实，必要时联动物业与消防，切勿仅凭设备读数判定误报。" },
-    { key: "fall", name: "跌倒紧急求助", level: 3, icon: "✚", tone: "red", device: "紧急呼叫按钮 SOS-{room} · 触发 1 次", description: "住户紧急呼叫装置被触发，系统未能确认住户状态，请立即联系并安排上门查看。", advice: "按最高优先级处置，同时联系紧急联系人，必要时拨打 120。" },
-    { key: "inactive", name: "独居关怀提醒", level: 2, icon: "◐", tone: "amber", device: "活动感应器 AC-{room} · 12 小时未检测到活动", description: "住户活动信号长时间未更新，建议先电话联系，再视情况上门关怀。", advice: "先电话问候本人，联系不上再联系家属，最后安排上门巡访。" },
-    { key: "water", name: "用水异常", level: 2, icon: "≋", tone: "amber", device: "智能水表 WM-{room} · 连续流量异常 6 小时", description: "智能水表出现持续用水记录，建议联系住户确认是否存在漏水或忘关水龙头。", advice: "联系住户核实，必要时协调物业关闭总阀并上门检查。" },
-    { key: "firelane", name: "消防通道占用", level: 2, icon: "▤", tone: "amber", device: "楼道摄像头 CV-{room} · 识别到障碍物滞留", description: "楼道公共区域检测到物品长时间堆放，可能影响消防疏散，请核实并协调清理。", advice: "联系住户确认物品归属，张贴告知并安排物业协助清理。" },
-    { key: "door", name: "门磁长时开启", level: 1, icon: "▣", tone: "gold", device: "门磁传感器 DC-{room} · 开启 48 分钟", description: "住户入户门保持开启超过设定时长，请联系住户确认安全状态。", advice: "电话确认为主，若联系不上再安排上门查看。" }
   ];
   var RESOLUTIONS = [
     { key: "cleared", label: "已排除风险", tone: "green" },
@@ -89,7 +80,7 @@
     return function () { listeners = listeners.filter(function (f) { return f !== fn; }); };
   }
   function fingerprint(data) {
-    return JSON.stringify([data.events || [], data.logs || [], data.stats || {}, data.user || null]);
+    return JSON.stringify([data.events || [], data.logs || [], data.stats || {}, data.user || null, data.users || []]);
   }
   function applySnapshot(data, type) {
     if (data.user) STATE.user = data.user;
@@ -105,6 +96,7 @@
   async function init() {
     var res = await global.AXAPI.bootstrap();
     if (!res.ok) return res;
+    global.AX.EVENT_TYPES = res.eventTypes;
     STATE.loginAt = fmt(new Date());
     applySnapshot(res, "bootstrap");
     lastFingerprint = fingerprint(res);
@@ -210,7 +202,7 @@
     var res = await global.AXAPI[kind](id, payload);
     if (!res.ok) return res;
     await syncState("updated");
-    return { ok: true, event: event(id) };
+    return { ok: true, event: res.event };
   }
   function claim(id, note) { return act("claim", id, note || ""); }
   function contact(id, payload) { return act("contact", id, payload); }
@@ -219,7 +211,7 @@
 
   global.AX = {
     ROLE: ROLE, STATUS: STATUS, LEVEL_NAME: LEVEL_NAME, LEVEL_CLASS: LEVEL_CLASS,
-    BUILDINGS: BUILDINGS, RESIDENTS: RESIDENTS, EVENT_TYPES: EVENT_TYPES, RESOLUTIONS: RESOLUTIONS,
+    BUILDINGS: BUILDINGS, RESIDENTS: RESIDENTS, EVENT_TYPES: [], RESOLUTIONS: RESOLUTIONS,
     fmt: fmt, fmtShort: fmtShort, uid: uid, levelName: levelName, levelClass: levelClass,
     session: session, subscribe: subscribe, notify: notify,
     init: init, onReady: onReady, isReady: isReady, refresh: refresh,
