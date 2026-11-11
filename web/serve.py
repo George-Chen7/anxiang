@@ -1,6 +1,6 @@
-"""Static-only server for the archived prototype (web/static.html).
-Run with `python serve.py`. It has no /api/* routes, so the full system
-in index.html will not work here; use web/start.bat -> server.py instead.
+"""Static-only server for the WorkBuddy cloud static app (web/static.html).
+Run with `python serve.py`. It has no /api/* routes; the local full system
+in index.html requires web/start.bat -> server.py.
 """
 import functools
 import http.server
@@ -16,6 +16,13 @@ PORT_LAST = 8775
 
 
 class Handler(http.server.SimpleHTTPRequestHandler):
+    # Windows 注册表可能把 .js 映射为 text/plain，导致 iframe 内的模块脚本被拒绝。
+    extensions_map = {
+        **http.server.SimpleHTTPRequestHandler.extensions_map,
+        ".js": "text/javascript; charset=utf-8",
+        ".mjs": "text/javascript; charset=utf-8",
+    }
+
     def log_message(self, *_args):
         pass
 

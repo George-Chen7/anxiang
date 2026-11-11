@@ -1,4 +1,4 @@
-/* Static-only server for the archived prototype (web/static.html). No /api/* routes. */
+/* Static-only server for the WorkBuddy cloud static app (web/static.html). No /api/* routes. */
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
